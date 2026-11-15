@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#141821">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>TradePro</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: #141821;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        .header h1 {
+            color: #ffc107;
+            margin: 5px 0;
+            font-size: 28px;
+            letter-spacing: 1px;
+        }
+        .goal-box {
+            background: #1e2433;
+            border: 1px solid #2e374d;
+            border-radius: 14px;
+            padding: 14px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .goal-text { font-size: 16px; color: #8ab4f8; font-weight: bold; }
+        .progress-bg {
+            background: #11151f;
+            height: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: linear-gradient(90deg, #ff9800, #ffc107);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .card {
+            background: #1e2433;
+            border-radius: 16px;
+            padding: 18px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        label { display: block; font-size: 13px; color: #9aa5b8; margin-bottom: 6px; }
+        input {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 14px;
+            border-radius: 10px;
+            border: 1px solid #323c54;
+            background: #141821;
+            color: #fff;
+            font-size: 18px;
+            outline: none;
+        }
+        input:focus { border-color: #ffc107; }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-green { background: #1e9e53; }
+        .btn-blue { background: #2962ff; }
+        .result {
+            background: #141821;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            min-height: 75px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin: 10px 0 14px 0;
+            font-size: 17px;
+            line-height: 1.4;
+        }
+        .row { display: flex; gap: 10px; }
+        .btn-orange { background: #e68a00; flex: 1; margin-bottom: 0; }
+        .btn-red { background: #c62828; flex: 1; margin-bottom: 0; }
+        .goal-edit { margin-top: 8px; font-size: 12px; color: #7a869a; text-decoration: underline; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>TRADE PRO</h1>
+    </div>
+
+    <div class="goal-box">
+        <div class="goal-text" id="goalDisplay">Копилка: 0.00 G / Цель: 1000 G</div>
+        <div class="progress-bg"><div class="progress-fill" id="progressBar"></div></div>
+        <div class="goal-edit" onclick="changeGoal()">Изменить цель или сбросить копилку</div>
+    </div>
+
+    <div class="card">
+        <label>Цена покупки за 1 шт (G)</label>
+        <input type="number" id="buyPrice" inputmode="decimal" placeholder="Например: 12.50">
+
+        <label>Цена продажи / Рыночная цена (G)</label>
+        <input type="number" id="sellPrice" inputmode="decimal" placeholder="Например: 18.00">
+
+        <label>Количество штук</label>
+        <input type="number" id="qty" inputmode="numeric" value="1">
+
+        <button class="btn btn-green" onclick="calcProfit()">ПОСЧИТАТЬ ПРОФИТ (-20%)</button>
+        <button class="btn btn-blue" onclick="calcOrder()">КАКОЙ ЗАПРОС ПОСТАВИТЬ? (+15%)</button>
+
+        <div class="result" id="resultBox">Введи цены выше и нажми кнопку</div>
+
+        <div class="row">
+            <button class="btn btn-orange" onclick="addToGoal()">+ В КОПИЛКУ</button>
+            <button class="btn btn-red" onclick="clearAll()">ОЧИСТИТЬ</button>
+        </div>
+    </div>
+
+    <script>
+        let savedProfit = parseFloat(localStorage.getItem('tradePro_saved')) || 0;
+        let goalTarget = parseFloat(localStorage.getItem('tradePro_goal')) || 1000;
+        let lastCalcProfit = 0;
+
+        function updateGoalUI() {
+            document.getElementById('goalDisplay').innerText = `Копилка: ${savedProfit.toFixed(2)} G / Цель: ${goalTarget.toFixed(0)} G`;
+            let percent = Math.min((savedProfit / goalTarget) * 100, 100);
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+        updateGoalUI();
+
+        function calcProfit() {
+            let buy = parseFloat(document.getElementById('buyPrice').value);
+            let sell = parseFloat(document.getElementById('sellPrice').value);
+            let qty = parseInt(document.getElementById('qty').value) || 1;
+            let res = document.getElementById('resultBox');
+
+            if (isNaN(buy)) {
+                res.innerHTML = '<span style="color:#ff5252">Введи цену покупки в первое поле!</span>';
+                return;
+            }
+
+            let minSell = buy / 0.8;
+
+            if (isNaN(sell)) {
+                res.innerHTML = `<span style="color:#ffd740">Выход в ноль от: <b>${minSell.toFixed(2)} G</b> (за 1 шт)</span>`;
+                lastCalcProfit = 0;
+                return;
+            }
+
+            let profitOne = (sell * 0.8) - buy;
+            let total = profitOne * qty;
+            lastCalcProfit = total;
+
+            if (total > 0) {
+                res.innerHTML = `<span style="color:#69f0ae; font-size:20px;"><b>ЧИСТЫЙ ПЛЮС: +${total.toFixed(2)} G</b></span>
+                                 <span style="font-size:13px; color:#b0bec5;">(${profitOne.toFixed(2)} G за шт | Ноль от ${minSell.toFixed(2)} G)</span>`;
+            } else if (total < 0) {
+                res.innerHTML = `<span style="color:#ff5252; font-size:20px;"><b>МИНУС: ${total.toFixed(2)} G</b></span>
+                                 <span style="font-size:13px; color:#b0bec5;">Чтобы выйти в ноль, ставь ${minSell.toFixed(2)} G</span>`;
+            } else {
+                res.innerHTML = `<b>РОВНО В НОЛЬ (0.00 G)</b>`;
+            }
+        }
+
+        function calcOrder() {
+            let market = parseFloat(document.getElementById('sellPrice').value);
+            let res = document.getElementById('resultBox');
+
+            if (isNaN(market)) {
+                res.innerHTML = '<span style="color:#ff5252">Введи рыночную цену во второе поле!</span>';
+                return;
+            }
+
+            let net = market * 0.8;
+            let recOrder = net / 1.15;
+
+            res.innerHTML = `<span style="color:#40c4ff; font-size:19px;"><b>Ставь запрос: ${recOrder.toFixed(2)} G</b></span>
+                             <span style="font-size:13px; color:#b0bec5;">(Плюс ~15% | Макс. запрос в ноль: ${net.toFixed(2)} G)</span>`;
+        }
+
+        function addToGoal() {
+            if (lastCalcProfit > 0) {
+                savedProfit += lastCalcProfit;
+                localStorage.setItem('tradePro_saved', savedProfit);
+                updateGoalUI();
+                lastCalcProfit = 0;
+                document.getElementById('resultBox').innerHTML = '<span style="color:#ffc107">Прибыль сохранена в копилку!</span>';
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('buyPrice').value = '';
+            document.getElementById('sellPrice').value = '';
+            document.getElementById('qty').value = '1';
+            lastCalcProfit = 0;
+            document.getElementById('resultBox').innerHTML = 'Поля очищены';
+        }
+
+        function changeGoal() {
+            let newGoal = prompt("Введи новую цель (в голде) или напиши 0, чтобы обнулить копилку:", goalTarget);
+            if (newGoal !== null) {
+                let val = parseFloat(newGoal);
+                if (val === 0) {
+                    savedProfit = 0;
+                    localStorage.setItem('tradePro_saved', 0);
+                } else if (val > 0) {
+                    goalTarget = val;
+                    localStorage.setItem('tradePro_goal', goalTarget);
+                }
+                updateGoalUI();
+            }
+        }
+    </script>
+</body>
+</html>
